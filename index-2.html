@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Music Admin</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root { --bg:#111; --card:#1a1c1c; --line:#2a2d2d; --text:#eee; --mute:#9a9fa0; --accent:#3ecf8e; --danger:#ef5350; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:15px/1.5 system-ui,sans-serif; }
+  .wrap { max-width:960px; margin:0 auto; padding:20px 16px 60px; }
+  h1 { font-size:22px; margin:0 0 4px; }
+  h2 { font-size:16px; margin:0 0 14px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:18px; margin-top:18px; }
+  label { display:block; font-size:13px; color:var(--mute); margin:12px 0 4px; }
+  input[type=text], input[type=email], input[type=password] {
+    width:100%; padding:10px 12px; background:#111; border:1px solid var(--line); border-radius:8px; color:var(--text); font-size:15px; }
+  input[type=file] { width:100%; color:var(--mute); }
+  button { background:var(--accent); color:#04200f; border:0; border-radius:8px; padding:10px 18px; font-weight:600; font-size:15px; cursor:pointer; }
+  button.ghost { background:transparent; color:var(--mute); border:1px solid var(--line); }
+  button.danger { background:transparent; color:var(--danger); border:1px solid var(--danger); padding:6px 12px; font-size:13px; }
+  button:disabled { opacity:.5; cursor:not-allowed; }
+  .row { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  @media (max-width:640px){ .row { grid-template-columns:1fr; } }
+  .top { display:flex; justify-content:space-between; align-items:center; gap:10px; }
+  .hidden { display:none !important; }
+  .msg { margin-top:12px; font-size:14px; }
+  .msg.err { color:var(--danger); } .msg.ok { color:var(--accent); }
+  .bar { height:6px; background:#111; border-radius:4px; overflow:hidden; margin-top:12px; }
+  .bar > div { height:100%; width:0; background:var(--accent); transition:width .2s; }
+  .preview { display:flex; gap:14px; align-items:center; margin-top:14px; }
+  .preview img { width:84px; height:84px; object-fit:cover; border-radius:8px; background:#111; }
+  .track { display:flex; gap:12px; align-items:center; padding:10px 0; border-top:1px solid var(--line); }
+  .track:first-child { border-top:0; }
+  .track img, .track .ph { width:52px; height:52px; border-radius:6px; object-fit:cover; background:#111; flex:none; }
+  .track .info { flex:1; min-width:0; }
+  .track .t { font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .track .s { color:var(--mute); font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  audio { height:32px; max-width:200px; }
+  @media (max-width:640px){ audio { display:none; } }
+
+  /* ===== Neon glass + neumorphic theme (pink / dark) ===== */
+  :root {
+    --bg:#0a0710; --text:#f6e9f3; --mute:#a894a8;
+    --accent:#ff2e93; --accent2:#ff6ec7; --danger:#ff4d6d;
+    --glass:rgba(255,255,255,.05); --glass-line:rgba(255,110,199,.22);
+    --neo-dark:rgba(0,0,0,.65); --neo-light:rgba(255,110,199,.07);
+  }
+  body {
+    background:
+      radial-gradient(900px 500px at 10% -10%, rgba(255,46,147,.22), transparent 60%),
+      radial-gradient(700px 500px at 100% 20%, rgba(138,43,226,.20), transparent 60%),
+      radial-gradient(800px 600px at 40% 110%, rgba(255,46,147,.14), transparent 60%),
+      var(--bg);
+    background-attachment:fixed;
+    min-height:100vh;
+  }
+  h1 {
+    font-weight:800; letter-spacing:.5px;
+    background:linear-gradient(90deg,var(--accent2),var(--accent));
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+    text-shadow:0 0 24px rgba(255,46,147,.55);
+  }
+  h2 { color:var(--accent2); text-shadow:0 0 12px rgba(255,46,147,.5); letter-spacing:.3px; }
+
+  .card {
+    background:linear-gradient(145deg, rgba(255,255,255,.08), rgba(255,255,255,.02));
+    border:1px solid var(--glass-line);
+    border-radius:22px;
+    -webkit-backdrop-filter:blur(18px) saturate(140%);
+    backdrop-filter:blur(18px) saturate(140%);
+    box-shadow:
+      12px 12px 30px var(--neo-dark),
+      -8px -8px 24px var(--neo-light),
+      inset 1px 1px 0 rgba(255,255,255,.10),
+      0 0 40px rgba(255,46,147,.06);
+  }
+
+  label { color:var(--accent2); opacity:.85; font-size:12px; text-transform:uppercase; letter-spacing:1px; }
+
+  /* inset neumorphic fields */
+  input[type=text], input[type=email], input[type=password] {
+    background:rgba(8,4,14,.55);
+    border:1px solid rgba(255,110,199,.12);
+    border-radius:14px;
+    color:var(--text);
+    box-shadow: inset 5px 5px 12px rgba(0,0,0,.65), inset -4px -4px 10px rgba(255,110,199,.05);
+    transition:border-color .2s, box-shadow .2s;
+  }
+  input::placeholder { color:#6d5b6d; }
+  input[type=text]:focus, input[type=email]:focus, input[type=password]:focus {
+    outline:none; border-color:var(--accent);
+    box-shadow: inset 5px 5px 12px rgba(0,0,0,.65), inset -4px -4px 10px rgba(255,110,199,.05),
+                0 0 0 3px rgba(255,46,147,.18), 0 0 18px rgba(255,46,147,.45);
+  }
+  input[type=file] {
+    padding:10px; border-radius:14px; border:1px dashed rgba(255,110,199,.35);
+    background:rgba(8,4,14,.4);
+    box-shadow: inset 4px 4px 10px rgba(0,0,0,.55);
+  }
+  input[type=file]::file-selector-button {
+    margin-right:12px; padding:7px 14px; border:0; border-radius:10px; cursor:pointer;
+    color:#fff; font-weight:600;
+    background:linear-gradient(145deg,#ff4aa5,#d81b7a);
+    box-shadow:4px 4px 10px rgba(0,0,0,.5), -2px -2px 6px rgba(255,110,199,.15);
+  }
+
+  /* raised neon buttons */
+  button {
+    color:#fff; border-radius:14px; padding:11px 22px;
+    background:linear-gradient(145deg,#ff4aa5,#d81b7a);
+    box-shadow: 6px 6px 14px rgba(0,0,0,.6), -4px -4px 10px rgba(255,110,199,.10),
+                0 0 18px rgba(255,46,147,.55);
+    text-shadow:0 0 8px rgba(255,255,255,.4);
+    transition:transform .15s, box-shadow .15s, filter .15s;
+  }
+  button:hover:not(:disabled) { filter:brightness(1.12); box-shadow: 6px 6px 14px rgba(0,0,0,.6), 0 0 28px rgba(255,46,147,.85); }
+  button:active:not(:disabled) { transform:translateY(1px);
+    box-shadow: inset 4px 4px 10px rgba(0,0,0,.45), inset -3px -3px 8px rgba(255,110,199,.2), 0 0 14px rgba(255,46,147,.5); }
+  button.ghost {
+    background:var(--glass); color:var(--accent2); text-shadow:none;
+    border:1px solid var(--glass-line);
+    -webkit-backdrop-filter:blur(10px); backdrop-filter:blur(10px);
+    box-shadow:5px 5px 12px rgba(0,0,0,.55), -3px -3px 8px rgba(255,110,199,.06);
+  }
+  button.danger {
+    background:rgba(255,77,109,.08); color:var(--danger); text-shadow:none;
+    border:1px solid rgba(255,77,109,.5); border-radius:12px;
+    box-shadow:4px 4px 10px rgba(0,0,0,.5), 0 0 10px rgba(255,77,109,.25);
+  }
+
+  .bar { height:8px; border-radius:8px; background:rgba(8,4,14,.7);
+    box-shadow: inset 3px 3px 6px rgba(0,0,0,.7); }
+  .bar > div { background:linear-gradient(90deg,var(--accent),var(--accent2));
+    box-shadow:0 0 14px var(--accent); border-radius:8px; }
+
+  .msg.ok  { color:#ff8fd0; text-shadow:0 0 10px rgba(255,46,147,.6); }
+  .msg.err { color:var(--danger); }
+
+  .preview { padding:12px; border-radius:16px; background:rgba(8,4,14,.45);
+    box-shadow: inset 4px 4px 10px rgba(0,0,0,.55), inset -3px -3px 8px rgba(255,110,199,.05); }
+  .preview img { border-radius:14px; box-shadow:0 0 18px rgba(255,46,147,.4); }
+
+  .track {
+    border:1px solid transparent; border-radius:16px; padding:10px 12px; margin-top:10px;
+    background:linear-gradient(145deg, rgba(255,255,255,.05), rgba(255,255,255,.01));
+    box-shadow:6px 6px 14px rgba(0,0,0,.5), -4px -4px 10px rgba(255,110,199,.04);
+    transition:border-color .2s, box-shadow .2s;
+  }
+  .track:first-child { margin-top:0; }
+  .track:hover { border-color:var(--glass-line); box-shadow:6px 6px 14px rgba(0,0,0,.5), 0 0 22px rgba(255,46,147,.25); }
+  .track img, .track .ph { border-radius:12px; box-shadow:0 0 12px rgba(255,46,147,.35); }
+  .track .ph { background:linear-gradient(145deg,#2a1030,#12081a); }
+  .track .t { color:var(--text); }
+  audio { filter:invert(1) hue-rotate(290deg) saturate(2.2); opacity:.9; border-radius:20px; }
+
+  /* floating neon orbs behind the glass */
+  .orb { position:fixed; border-radius:50%; filter:blur(70px); z-index:-1; pointer-events:none; opacity:.55; }
+  .orb.a { width:280px; height:280px; background:#ff2e93; top:8%; left:-80px; }
+  .orb.b { width:240px; height:240px; background:#8a2be2; bottom:6%; right:-60px; opacity:.4; }
+  ::selection { background:var(--accent); color:#fff; }
+  ::-webkit-scrollbar { width:10px; } ::-webkit-scrollbar-thumb { background:#3a1630; border-radius:10px; }
+</style>
+</head>
+<body>
+<div class="orb a"></div><div class="orb b"></div>
+<div class="wrap">
+
+  <!-- LOGIN -->
+  <div id="loginView" class="card hidden">
+    <h1>Music Admin</h1>
+    <label>Email</label><input id="email" type="email" autocomplete="username">
+    <label>Password</label><input id="password" type="password" autocomplete="current-password">
+    <div style="margin-top:16px"><button id="loginBtn">Sign in</button></div>
+    <div id="loginMsg" class="msg"></div>
+  </div>
+
+  <!-- APP -->
+  <div id="appView" class="hidden">
+    <div class="top">
+      <div><h1>Music Admin</h1><div style="color:var(--mute);font-size:13px" id="who"></div></div>
+      <button class="ghost" id="logoutBtn">Sign out</button>
+    </div>
+
+    <div class="card">
+      <h2>Upload track</h2>
+      <label>Title *</label><input id="title" type="text">
+      <div class="row">
+        <div><label>Artist *</label><input id="artist" type="text"></div>
+        <div><label>Album *</label><input id="album" type="text"></div>
+      </div>
+      <div class="row">
+        <div><label>MP3 file *</label><input id="audioFile" type="file" accept="audio/mpeg,.mp3,audio/*"></div>
+        <div><label>Artwork image (optional)</label><input id="artFile" type="file" accept="image/*"></div>
+      </div>
+      <div class="preview hidden" id="preview">
+        <img id="artPrev" alt="">
+        <div style="color:var(--mute);font-size:13px">
+          <div id="fileInfo"></div>
+          <div id="durInfo"></div>
+        </div>
+      </div>
+      <div class="bar hidden" id="bar"><div id="barFill"></div></div>
+      <div style="margin-top:16px"><button id="uploadBtn">Upload</button></div>
+      <div id="uploadMsg" class="msg"></div>
+    </div>
+
+    <div class="card">
+      <div class="top"><h2 style="margin:0">Tracks</h2><button class="ghost" id="refreshBtn">Refresh</button></div>
+      <div id="list" style="margin-top:8px"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ============ CONFIG — fill these in ============ */
+const SUPABASE_URL  = "https://YOUR-PROJECT.supabase.co";
+const SUPABASE_ANON = "YOUR-ANON-PUBLIC-KEY";
+const AUDIO_BUCKET   = "audio";     // storage bucket for mp3 files
+const ARTWORK_BUCKET = "artwork";   // storage bucket for images
+const TABLE = "tracks";
+/* ================================================ */
+
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+const $ = id => document.getElementById(id);
+let durationSec = null;
+
+function msg(el, text, kind) { el.textContent = text || ""; el.className = "msg " + (kind || ""); }
+function show(view) {
+  $("loginView").classList.toggle("hidden", view !== "login");
+  $("appView").classList.toggle("hidden", view !== "app");
+}
+function fmt(s) { s = s || 0; return Math.floor(s/60) + ":" + String(s%60).padStart(2,"0"); }
+function ext(name, fallback) { const m = /\.([a-z0-9]+)$/i.exec(name); return m ? m[1].toLowerCase() : fallback; }
+function publicUrl(bucket, path) { return path ? sb.storage.from(bucket).getPublicUrl(path).data.publicUrl : null; }
+
+/* ---------- auth ---------- */
+async function init() {
+  const { data } = await sb.auth.getSession();
+  if (data.session) { enterApp(data.session.user); } else { show("login"); }
+}
+function enterApp(user) { $("who").textContent = user.email; show("app"); loadTracks(); }
+
+$("loginBtn").onclick = async () => {
+  msg($("loginMsg"), "Signing in…");
+  const { data, error } = await sb.auth.signInWithPassword({ email: $("email").value.trim(), password: $("password").value });
+  if (error) return msg($("loginMsg"), error.message, "err");
+  msg($("loginMsg"), "");
+  enterApp(data.user);
+};
+$("logoutBtn").onclick = async () => { await sb.auth.signOut(); show("login"); };
+
+/* ---------- file previews ---------- */
+$("audioFile").onchange = () => {
+  const f = $("audioFile").files[0];
+  durationSec = null;
+  if (!f) return;
+  $("preview").classList.remove("hidden");
+  $("fileInfo").textContent = f.name + " (" + (f.size/1048576).toFixed(1) + " MB)";
+  $("durInfo").textContent = "Reading duration…";
+  if (!$("title").value) $("title").value = f.name.replace(/\.[^.]+$/, "");
+  const a = new Audio(); a.preload = "metadata";
+  a.src = URL.createObjectURL(f);
+  a.onloadedmetadata = () => {
+    durationSec = Math.round(a.duration);
+    $("durInfo").textContent = "Duration: " + fmt(durationSec);
+    URL.revokeObjectURL(a.src);
+  };
+  a.onerror = () => { $("durInfo").textContent = "Could not read duration"; };
+};
+$("artFile").onchange = () => {
+  const f = $("artFile").files[0];
+  if (!f) return;
+  $("preview").classList.remove("hidden");
+  $("artPrev").src = URL.createObjectURL(f);
+};
+
+/* ---------- upload ---------- */
+$("uploadBtn").onclick = async () => {
+  const title = $("title").value.trim(), artist = $("artist").value.trim(), album = $("album").value.trim();
+  const audio = $("audioFile").files[0], art = $("artFile").files[0];
+  const m = $("uploadMsg");
+  if (!title || !artist || !album || !audio) return msg(m, "Title, artist, album and MP3 file are required.", "err");
+  if (durationSec == null) return msg(m, "Still reading audio duration — try again in a second.", "err");
+
+  const id = crypto.randomUUID();
+  const audioPath = `${id}.${ext(audio.name, "mp3")}`;
+  const artPath = art ? `${id}.${ext(art.name, "jpg")}` : null;
+
+  $("uploadBtn").disabled = true;
+  $("bar").classList.remove("hidden");
+  const fill = p => $("barFill").style.width = p + "%";
+  fill(5);
+
+  try {
+    msg(m, "Uploading audio…");
+    let r = await sb.storage.from(AUDIO_BUCKET).upload(audioPath, audio, { contentType: audio.type || "audio/mpeg", upsert: false });
+    if (r.error) throw r.error;
+    fill(55);
+
+    if (art) {
+      msg(m, "Uploading artwork…");
+      r = await sb.storage.from(ARTWORK_BUCKET).upload(artPath, art, { contentType: art.type, upsert: false });
+      if (r.error) { await sb.storage.from(AUDIO_BUCKET).remove([audioPath]); throw r.error; }
+    }
+    fill(85);
+
+    msg(m, "Saving track…");
+    const ins = await sb.from(TABLE).insert({
+      id, title, artist, album,
+      audio_path: audioPath,
+      duration_sec: durationSec,
+      artwork_path: artPath
+    });
+    if (ins.error) {
+      await sb.storage.from(AUDIO_BUCKET).remove([audioPath]);
+      if (artPath) await sb.storage.from(ARTWORK_BUCKET).remove([artPath]);
+      throw ins.error;
+    }
+    fill(100);
+    msg(m, "Uploaded “" + title + "”.", "ok");
+    ["title","artist","album"].forEach(k => $(k).value = "");
+    $("audioFile").value = ""; $("artFile").value = "";
+    $("preview").classList.add("hidden"); durationSec = null;
+    loadTracks();
+  } catch (e) {
+    msg(m, "Upload failed: " + (e.message || e), "err");
+  } finally {
+    $("uploadBtn").disabled = false;
+    setTimeout(() => { $("bar").classList.add("hidden"); $("barFill").style.width = "0"; }, 1200);
+  }
+};
+
+/* ---------- list / delete ---------- */
+async function loadTracks() {
+  const list = $("list");
+  list.textContent = "Loading…";
+  const { data, error } = await sb.from(TABLE).select("*").order("created_at", { ascending: false });
+  if (error) { list.textContent = "Error: " + error.message; return; }
+  if (!data.length) { list.textContent = "No tracks yet."; return; }
+  list.innerHTML = "";
+  data.forEach(t => {
+    const row = document.createElement("div"); row.className = "track";
+    const art = publicUrl(ARTWORK_BUCKET, t.artwork_path);
+    const img = art ? Object.assign(document.createElement("img"), { src: art, alt: "" }) : Object.assign(document.createElement("div"), { className: "ph" });
+    const info = document.createElement("div"); info.className = "info";
+    const a = document.createElement("div"); a.className = "t"; a.textContent = t.title;
+    const b = document.createElement("div"); b.className = "s"; b.textContent = `${t.artist} · ${t.album} · ${fmt(t.duration_sec)}`;
+    info.append(a, b);
+    const player = document.createElement("audio"); player.controls = true; player.preload = "none";
+    player.src = publicUrl(AUDIO_BUCKET, t.audio_path);
+    const del = document.createElement("button"); del.className = "danger"; del.textContent = "Delete";
+    del.onclick = () => removeTrack(t);
+    row.append(img, info, player, del);
+    list.append(row);
+  });
+}
+async function removeTrack(t) {
+  if (!confirm(`Delete “${t.title}”? This removes the files too.`)) return;
+  const d = await sb.from(TABLE).delete().eq("id", t.id);
+  if (d.error) return alert("Delete failed: " + d.error.message);
+  await sb.storage.from(AUDIO_BUCKET).remove([t.audio_path]);
+  if (t.artwork_path) await sb.storage.from(ARTWORK_BUCKET).remove([t.artwork_path]);
+  loadTracks();
+}
+$("refreshBtn").onclick = loadTracks;
+
+init();
+</script>
+</body>
+</html>
